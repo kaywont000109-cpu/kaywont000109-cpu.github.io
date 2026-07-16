@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 출결 시스템 (학생용)</title>
+    <style>
+        :root {
+            --primary: #4F46E5; --primary-light: #EEF2FF;
+            --danger: #EF4444; --danger-light: #FEF2F2;
+            --warning: #FBBF24; --warning-light: #FFFBEB;
+            --success: #10B981; --bg: #F3F4F6;
+            --white: #FFFFFF; --text: #1F2937;
+            --gray: #9CA3AF; --gray-light: #F9FAFB; --border: #E5E7EB;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .app-container { width: 100%; max-width: 480px; background: var(--white); min-height: 90vh; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        .header { background: var(--primary); color: var(--white); padding: 20px; font-size: 1.25rem; font-weight: bold; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; }
+        
+        .view-section { display: none; padding: 20px; flex: 1; overflow-y: auto; }
+        .view-section.active { display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+        
+        .status-box { background: var(--white); padding: 16px; border-radius: 16px; margin-bottom: 15px; border: 1px solid var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+        .status-box-title { font-weight: bold; font-size: 0.95rem; display: flex; align-items: center; justify-content: space-between; }
+        
+        .strike-container { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+        .circle-wrapper { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .circle { width: 32px; height: 32px; border-radius: 50%; border: 2.5px solid #D1D5DB; background: var(--gray-light); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; color: var(--gray); transition: all 0.3s; }
+        .circle.yellow { background: var(--warning); border-color: var(--warning); color: var(--white); box-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+        .circle.red { background: var(--danger); border-color: var(--danger); color: var(--white); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+        .strike-count-badge { background: var(--primary-light); color: var(--primary); padding: 3px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        
+        .missing-list { margin: 10px 0 0 0; padding-left: 18px; font-size: 0.9rem; color: #4B5563; }
+        .missing-list li { margin-bottom: 6px; line-height: 1.4; }
+        .missing-doc-item { display: flex; justify-content: space-between; align-items: flex-start; flex-direction: column; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 12px;}
+        .missing-doc-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0;}
+        .doc-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: var(--danger-light); color: var(--danger); font-weight: 500; display: inline-block;}
+
+        .btn-mini-success { background: var(--success); color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-mini-success:hover { background: #059669; }
+
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .menu-btn { background: var(--white); border: 2px solid var(--border); padding: 18px 10px; border-radius: 16px; font-size: 1.05rem; font-weight: bold; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: all 0.2s;}
+        .menu-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .menu-btn.full-width { grid-column: span 2; }
+        .menu-btn.history { background: #1F2937; color: white; border: none; margin-top: 5px; }
+        .menu-btn.history:hover { background: #111827; color: white; }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.95rem; }
+        .form-control { width: 100%; padding: 12px; border: 1.5px solid #D1D5DB; border-radius: 10px; box-sizing: border-box; font-size: 1rem; }
+        .time-group { display: flex; gap: 10px; margin-top: 8px; }
+        .optional-text { font-size: 0.8rem; color: var(--gray); font-weight: normal; margin-left: 4px; }
+        .date-range-box { background: var(--gray-light); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 6px; }
+        .radio-group { display: flex; flex-direction: column; gap: 8px; background: var(--gray-light); padding: 12px; border-radius: 10px; border: 1px solid var(--border); }
+        .radio-item { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+        
+        .btn-primary { width: 100%; padding: 15px; background: var(--primary); color: var(--white); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1.05rem; }
+        .btn-secondary { width: 100%; padding: 12px; background: #E5E7EB; color: var(--text); border: none; border-radius: 10px; margin-top: 10px; cursor: pointer; font-size: 1rem; font-weight: 500; }
+        
+        .history-list { display: flex; flex-direction: column; gap: 12px; }
+        .history-item { padding: 15px; border-radius: 12px; border: 1px solid var(--border); background: var(--white); }
+        .history-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--gray); }
+        .history-title { font-weight: bold; margin: 6px 0; font-size: 1rem; display: flex; align-items: center; justify-content: space-between; }
+        .history-detail { font-size: 0.85rem; color: #4B5563; background: var(--gray-light); padding: 8px; border-radius: 6px; margin-top: 4px; line-height: 1.4;}
+        .status-badge { padding: 3px 8px; border-radius: 20px; font-size: 0.75rem; font-weight:bold; }
+        .status-badge.missing { background: var(--danger-light); color: var(--danger); border: 1px solid #FECACA; }
+        .status-badge.submitted { background: #D1FAE5; color: var(--success); border: 1px solid #A7F3D0; }
+
+        #loadingOverlay { position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:100; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div id="loadingOverlay" class="hidden">
+            <div class="spinner"></div>
+            <p id="loadingText" style="margin-top: 15px; font-weight: bold; color: var(--primary);">서버에서 데이터를 불러오는 중...</p>
+        </div>
+
+        <div class="header">
+            <span id="headerTitle">스마트 출결 시스템</span>
+            <button id="logoutBtn" class="logout-btn hidden" onclick="logout()">로그아웃</button>
+        </div>
+
+        <div id="loginView" class="view-section active">
+            <h2 style="color: var(--primary); text-align: center; margin-top: 40px;">학생 로그인</h2>
+            <div class="form-group">
+                <input type="text" id="studentNameInput" class="form-control" placeholder="본인 이름을 입력하세요 (예: 박도윤)">
+            </div>
+            <button class="btn-primary" onclick="login()">접속하기</button>
+            <p style="text-align: center; color: var(--gray); font-size: 0.8rem; margin-top: 20px;">
+                접속 시 교무실 서버와 동기화하여<br>나의 실시간 출결 현황을 불러옵니다.
+            </p>
+        </div>
+
+        <div id="mainView" class="view-section" style="background: var(--gray-light);">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">안녕하세요, <span id="welcomeName" style="color: var(--primary);"></span> 학생!</h3>
+                <button onclick="fetchMyData()" style="background:none; border:none; color:var(--gray); cursor:pointer; font-size:0.8rem;">↻ 새로고침</button>
+            </div>
+            
+            <div class="status-box">
+                <div class="status-box-title">
+                    <span>🏃 내 단순 지각 누적 현황</span>
+                    <span class="strike-count-badge" id="dashboardStrikeText">누적 0회(안전)</span>
+                </div>
+                <div class="strike-container" id="dashboardStrikes"></div>
+                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 10px; line-height:1.3;">
+                    ※ 선생님 서버와 연동된 실시간 데이터입니다. 3회 누적 시 성찰계획서 작성 대상이 됩니다.
+                </div>
+            </div>
+
+            <div class="status-box" style="border-left: 4px solid var(--danger);" id="missingDocsBox">
+                <div style="color: var(--danger); font-weight: bold; font-size: 0.95rem;">
+                    ⚠️ 증빙서류 미제출 안내 (<span id="missingCount">0</span>건)
+                </div>
+                <div id="missingDocList" style="margin-top: 10px;"></div>
+            </div>
+
+            <div class="menu-grid">
+                <button class="menu-btn" onclick="openForm('결석')">🛏️ 결석</button>
+                <button class="menu-btn" onclick="openForm('지각')">🏃 지각</button>
+                <button class="menu-btn" onclick="openForm('조퇴')">🏠 조퇴</button>
+                <button class="menu-btn" onclick="openForm('체험학습')">🏕️ 교외체험학습</button>
+                <button class="menu-btn full-width" onclick="openForm('외부출연')">🎥 외부출연허가원</button>
+                <button class="menu-btn full-width history" onclick="switchView('historyView', '나의 출결 기록')">📋 나의 출결 기록 보기</button>
+            </div>
+        </div>
+
+        <div id="formView" class="view-section">
+            <h2 id="formTitle" style="margin-top:0; color: var(--primary);">폼 제목</h2>
+            
+            <div class="form-group">
+                <label id="dateLabel">날짜</label>
+                <input type="date" class="form-control" id="startDate">
+                
+                <div id="rangeDateContainer" class="date-range-box hidden">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <input type="checkbox" id="useEndDate" onchange="toggleEndDateInput()" style="width:16px; height:16px;">
+                        <label for="useEndDate" style="margin:0; font-size: 0.85rem; font-weight: normal;">여러 날 동안 신청할래요 (종료일 추가)</label>
+                    </div>
+                    <div id="endDateInputWrapper" class="hidden">
+                        <span style="font-size: 0.8rem; color: var(--gray); display:block; margin-bottom: 4px;">종료 날짜</span>
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                </div>
+
+                <div id="timePeriodContainer" class="time-group hidden">
+                    <div style="flex:1;">
+                        <span style="font-size: 0.8rem; color: var(--gray); display:block; margin-bottom: 4px;">시간 입력</span>
+                        <input type="time" class="form-control" id="timeInput">
+                    </div>
+                    <div style="flex:1;">
+                        <span style="font-size: 0.8rem; color: var(--gray); display:block; margin-bottom: 4px;">교시 선택</span>
+                        <select class="form-control" id="periodSelect">
+                            <option value="">(선택 안함)</option>
+                            <option value="1">1교시</option>
+                            <option value="2">2교시</option>
+                            <option value="3">3교시</option>
+                            <option value="4">4교시</option>
+                            <option value="5">5교시</option>
+                            <option value="6">6교시</option>
+                            <option value="7">7교시</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="optionalGuideText" class="optional-text hidden" style="margin-top: 6px;">💡 교외체험/외부출연은 시간/교시 입력이 필수(선택사항)가 아닙니다.</div>
+            </div>
+
+            <div class="form-group" id="reasonGroup">
+                <label>사유 (분류)</label>
+                <select class="form-control" id="reasonSelect"></select>
+                <input type="text" id="detailedReasonInput" class="form-control" placeholder="구체적인 세부 사유를 적어주세요" style="margin-top: 8px;">
+            </div>
+
+            <div class="form-group" id="documentGroup">
+                <label>관련 서류 제출 여부</label>
+                <div class="radio-group">
+                    
+                    <div id="proofDocCheck">
+                        <span style="font-weight: 500; font-size: 0.9rem;" id="proofDocLabel">증빙서류 제출 상태: </span>
+                        <div style="margin-top: 5px;">
+                            <label class="radio-item"><input type="radio" name="proof" value="제출 완료"> 제출했습니다</label>
+                            <label class="radio-item" style="margin-top: 4px;"><input type="radio" name="proof" value="미제출" checked> 아니오 (미제출)</label>
+                        </div>
+                    </div>
+
+                    <div id="absenceDocCheck" class="hidden">
+                        <span style="font-weight: 500; font-size: 0.9rem;">결석신고서 제출 상태: </span>
+                        <div style="margin-top: 5px;">
+                            <label class="radio-item"><input type="radio" name="absReport" value="제출 완료"> 제출했습니다</label>
+                            <label class="radio-item" style="margin-top: 4px;"><input type="radio" name="absReport" value="미제출" checked> 아니오 (미제출)</label>
+                        </div>
+                        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                            <span style="font-weight: 500; font-size: 0.9rem;">증빙서류 제출 상태: </span>
+                            <div style="margin-top: 5px;">
+                                <label class="radio-item"><input type="radio" name="absProof" value="제출 완료"> 제출했습니다</label>
+                                <label class="radio-item" style="margin-top: 4px;"><input type="radio" name="absProof" value="미제출" checked> 아니오 (미제출)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="appDocCheck" class="hidden">
+                        <span style="font-weight: 500; font-size: 0.9rem;">체험학습 신청서 제출 상태: </span>
+                        <div style="margin-top: 5px;">
+                            <label class="radio-item"><input type="radio" name="app" value="제출 완료"> 제출했습니다</label>
+                            <label class="radio-item" style="margin-top: 4px;"><input type="radio" name="app" value="미제출" checked> 아니오 (미제출)</label>
+                        </div>
+                        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                            <span style="font-weight: 500; font-size: 0.9rem;">체험학습 보고서 제출 상태: </span>
+                            <div style="margin-top: 5px;">
+                                <label class="radio-item"><input type="radio" name="report" value="제출 완료"> 제출했습니다</label>
+                                <label class="radio-item" style="margin-top: 4px;"><input type="radio" name="report" value="미제출" checked> 아니오 (미제출)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <button class="btn-primary" onclick="submitData()">서버로 제출하기</button>
+            <button class="btn-secondary" onclick="switchView('mainView', '스마트 출결 (학생용)')">취소 / 돌아가기</button>
+        </div>
+
+        <div id="historyView" class="view-section">
+            <h2 style="margin-top: 0; margin-bottom: 5px; color: var(--primary);">나의 전체 출결 기록</h2>
+            <p style="margin-top: 0; margin-bottom: 20px; font-size:0.85rem; color:var(--gray);">교무실 서버에 접수된 내역입니다.</p>
+            
+            <div class="history-list" id="myHistoryListContainer"></div>
+
+            <button class="btn-secondary" style="margin-top: 20px;" onclick="switchView('mainView', '스마트 출결 (학생용)')">대시보드로 돌아가기</button>
+        </div>
+    </div>
+
+<script>
+    // 선생님 웹 앱 주소
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwM7XAtLKeCpUg38vcNfjfxFWyV8N62nXuuASY1oBjppKeP3GRgU7AHXg3bdrCA4nhTNg/exec";
+
+    const reasonOptions = {
+        '결석': ['병결', '인정결석', '미인정결석'],
+        '지각': ['단순지각(늦잠, 교통체증 등)', '병지각', '인정지각', '미인정지각'],
+        '조퇴': ['병조퇴', '인정조퇴', '미인정조퇴'],
+        '체험학습': ['가족여행', '친인척 방문', '답사 및 견학', '기타']
+    };
+
+    let computedTardyCount = 0; 
+
+    window.onload = function() {
+        const savedName = localStorage.getItem('studentName');
+        if (savedName) {
+            document.getElementById('welcomeName').innerText = savedName;
+            fetchMyData(); 
+        }
+    };
+
+    function login() {
+        const name = document.getElementById('studentNameInput').value.trim();
+        if (!name) return alert("이름을 입력해주세요.");
+        localStorage.setItem('studentName', name);
+        document.getElementById('welcomeName').innerText = name;
+        fetchMyData(); 
+    }
+
+    function logout() {
+        localStorage.removeItem('studentName');
+        switchView('loginView', '학생 로그인');
+    }
+
+    function switchView(viewId, title) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        document.getElementById('headerTitle').innerText = title;
+        document.getElementById('logoutBtn').classList.toggle('hidden', viewId === 'loginView');
+    }
+
+    async function fetchMyData() {
+        const name = localStorage.getItem('studentName');
+        if(!name) return;
+
+        showLoading("나의 데이터를 동기화 중입니다...");
+
+        try {
+            const response = await fetch(WEB_APP_URL + "?t=" + new Date().getTime(), { cache: 'no-store' });
+            const data = await response.json();
+            
+            let myTardyCount = 0;
+            let myMissingDocs = [];
+            let myHistory = [];
+
+            data.forEach(row => {
+                if (row.name === name) {
+                    let occurrenceDate = row.date || "";
+                    if (!occurrenceDate && row.reason) {
+                        const match = row.reason.match(/\[(?:일자|날짜):\s*([^\]]+)\]/);
+                        if (match) occurrenceDate = match[1];
+                    }
+                    if (!occurrenceDate) {
+                        occurrenceDate = new Date(row.timestamp).toLocaleDateString();
+                    }
+
+                    let cleanReason = row.reason || "";
+                    if (row.reason) {
+                        cleanReason = row.reason.replace(/\s*\[(?:일자|날짜):\s*[^\]]+\]/, "");
+                    }
+
+                    if (row.type.includes('단순지각')) {
+                        myTardyCount++;
+                    }
+
+                    if (row.status.includes('미제출')) {
+                        let missingDetail = '서류 필요';
+                        
+                        if (row.status.includes('신청서') || row.status.includes('보고서')) {
+                            missingDetail = row.status.replace('미제출 ', '').replace('(', '').replace(')', '') + ' 필요';
+                        } else if (row.status.includes('결석신고서') || row.status.includes('증빙서류')) {
+                            missingDetail = row.status.replace('미제출 ', '').replace('(', '').replace(')', '') + ' 필요';
+                        }
+                        
+                        myMissingDocs.push({ 
+                            timestamp: row.timestamp, 
+                            date: occurrenceDate, 
+                            type: row.type,
+                            detail: missingDetail
+                        });
+                    }
+
+                    myHistory.push({
+                        timestamp: row.timestamp,
+                        date: occurrenceDate,
+                        type: row.type,
+                        reason: cleanReason,
+                        status: row.status
+                    });
+                }
+            });
+
+            computedTardyCount = myTardyCount;
+            myHistory.reverse(); 
+
+            renderDashboardStrikes();
+            renderMissingDocs(myMissingDocs);
+            renderHistory(myHistory);
+
+            hideLoading();
+            if (document.getElementById('mainView').classList.contains('active') === false && document.getElementById('historyView').classList.contains('active') === false) {
+                switchView('mainView', '스마트 출결 (학생용)');
+            }
+
+        } catch (error) {
+            hideLoading();
+            alert("서버 통신 실패: 데이터를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.");
+            switchView('mainView', '스마트 출결 (학생용)');
+        }
+    }
+
+    function renderDashboardStrikes() {
+        const container = document.getElementById('dashboardStrikes');
+        const badge = document.getElementById('dashboardStrikeText');
+        container.innerHTML = '';
+        
+        let strikeText = '';
+        if (computedTardyCount === 0) strikeText = '누적 0회(안전)';
+        else if (computedTardyCount === 1) strikeText = '누적 1회(주의)';
+        else if (computedTardyCount === 2) strikeText = '누적 2회(위험)';
+        else strikeText = `누적 ${computedTardyCount}회(삼진아웃)`;
+        badge.innerText = strikeText;
+
+        for (let i = 1; i <= 3; i++) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'circle-wrapper';
+
+            const circle = document.createElement('span');
+            circle.className = 'circle';
+            circle.innerText = i;
+
+            if (computedTardyCount >= 3) circle.classList.add('red');
+            else if (i <= computedTardyCount) circle.classList.add('yellow');
+
+            const label = document.createElement('span');
+            label.style.fontSize = '0.7rem'; label.style.color = 'var(--gray)';
+            label.innerText = i + '회';
+
+            wrapper.appendChild(circle);
+            wrapper.appendChild(label);
+            container.appendChild(wrapper);
+        }
+    }
+
+    function renderMissingDocs(missingArray) {
+        const box = document.getElementById('missingDocsBox');
+        const listContainer = document.getElementById('missingDocList');
+        const countSpan = document.getElementById('missingCount');
+
+        countSpan.innerText = missingArray.length;
+
+        if(missingArray.length === 0) {
+            box.style.borderLeftColor = 'var(--success)';
+            box.querySelector('div').style.color = 'var(--success)';
+            box.querySelector('div').innerHTML = '✅ 미제출 서류 없음';
+            listContainer.innerHTML = '<div style="font-size:0.85rem; color:var(--gray); margin-top:5px;">모든 증빙 서류가 제출되었습니다.</div>';
+        } else {
+            box.style.borderLeftColor = 'var(--danger)';
+            box.querySelector('div').style.color = 'var(--danger)';
+            box.querySelector('div').innerHTML = `⚠️ 증빙서류 미제출 안내 (<span id="missingCount">${missingArray.length}</span>건)`;
+            
+            let html = '';
+            missingArray.forEach(doc => {
+                html += `
+                    <div class="missing-doc-item">
+                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                            <span style="font-weight:bold; font-size:0.9rem;">${doc.type}</span>
+                            <span class="doc-badge">${doc.detail}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-top:4px;">
+                            <span style="font-size:0.8rem; color:var(--gray)">📅 날짜: ${doc.date}</span>
+                            <button class="btn-mini-success" onclick="updateDocumentStatus('${doc.timestamp}', '${doc.type}')">제출 완료로 변경</button>
+                        </div>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+    }
+
+    function renderHistory(historyArray) {
+        const container = document.getElementById('myHistoryListContainer');
+        container.innerHTML = '';
+
+        if(historyArray.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding: 30px; color:var(--gray); background:white; border-radius:10px;">기록된 출결 내역이 없습니다.</div>';
+            return;
+        }
+
+        historyArray.forEach(rec => {
+            const isMissing = rec.status.includes('미제출');
+            const badgeClass = isMissing ? 'missing' : 'submitted';
+            
+            let badgeText = '서류 제출완료';
+            if (isMissing) {
+                if (rec.status.includes('신청서') || rec.status.includes('보고서') || rec.status.includes('결석신고서') || rec.status.includes('증빙서류')) {
+                    badgeText = rec.status; 
+                } else {
+                    badgeText = '증빙서류 미제출';
+                }
+            }
+
+            let actionButton = '';
+            if (isMissing) {
+                actionButton = `<button class="btn-mini-success" style="margin-top: 10px; width:100%; text-align:center;" onclick="updateDocumentStatus('${rec.timestamp}', '${rec.type}')">서류 제출 완료 처리하기</button>`;
+            }
+
+            container.innerHTML += `
+                <div class="history-item">
+                    <div class="history-header">
+                        <span>날짜: ${rec.date}</span>
+                        <span class="status-badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                    <div class="history-title">
+                        <span>${rec.type}</span>
+                    </div>
+                    <div class="history-detail">
+                        ${rec.reason}
+                    </div>
+                    ${actionButton}
+                </div>
+            `;
+        });
+    }
+
+    async function updateDocumentStatus(timestamp, type) {
+        const name = localStorage.getItem('studentName');
+        if (!name || !timestamp) return;
+
+        const confirmUpdate = confirm(`'${type}'과 관련한 미제출 서류를 실제로 전부 제출하셨습니까?\n\n[확인]을 누르시면 상태가 '제출 완료'로 변경됩니다.`);
+        if (!confirmUpdate) return;
+
+        showLoading("증빙서류 제출 정보를 업데이트 중...");
+
+        const payload = {
+            action: "updateStatus",
+            name: name,
+            timestamp: timestamp,
+            status: "제출 완료"
+        };
+
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            
+            if (result.result === "success") {
+                alert("정상적으로 제출 완료 처리되었습니다!");
+                // 즉시 갱신을 위해 0.5초 대기 후 강제 로드
+                setTimeout(() => { fetchMyData(); }, 500); 
+            } else {
+                alert("업데이트 오류: " + result.message);
+                hideLoading();
+            }
+        } catch (error) {
+            hideLoading();
+            alert("서버 연결에 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+        }
+    }
+
+    function toggleEndDateInput() {
+        const checkbox = document.getElementById('useEndDate');
+        const wrapper = document.getElementById('endDateInputWrapper');
+        if (checkbox.checked) wrapper.classList.remove('hidden');
+        else { wrapper.classList.add('hidden'); document.getElementById('endDate').value = ''; }
+    }
+
+    function openForm(type) {
+        switchView('formView', type + ' 입력');
+        document.getElementById('formTitle').innerText = type + ' 신청';
+        
+        document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('endDate').value = '';
+        document.getElementById('useEndDate').checked = false;
+        document.getElementById('endDateInputWrapper').classList.add('hidden');
+        document.getElementById('detailedReasonInput').value = '';
+        document.getElementById('timeInput').value = '';
+        document.getElementById('periodSelect').value = '';
+        
+        // 폼 노출 요소 완전 초기화 및 분배
+        document.getElementById('proofDocCheck').classList.add('hidden');
+        document.getElementById('absenceDocCheck').classList.add('hidden');
+        document.getElementById('appDocCheck').classList.add('hidden');
+        
+        if (type === '결석') {
+            document.getElementById('absenceDocCheck').classList.remove('hidden');
+        } else if (type === '체험학습') {
+            document.getElementById('appDocCheck').classList.remove('hidden');
+        } else {
+            document.getElementById('proofDocCheck').classList.remove('hidden');
+            if(type === '외부출연') document.getElementById('proofDocLabel').innerText = '외부출연허가원 제출 상태:';
+            else document.getElementById('proofDocLabel').innerText = '증빙서류 제출 상태:';
+        }
+
+        const reasonGroup = document.getElementById('reasonGroup');
+        const reasonSelect = document.getElementById('reasonSelect');
+
+        if (type === '외부출연') {
+            reasonGroup.classList.add('hidden');
+        } else {
+            reasonGroup.classList.remove('hidden');
+            reasonSelect.innerHTML = '<option value="">사유 선택</option>';
+            if(reasonOptions[type]){
+                reasonOptions[type].forEach(reason => {
+                    let opt = document.createElement('option'); opt.value = opt.innerHTML = reason;
+                    reasonSelect.appendChild(opt);
+                });
+            }
+        }
+
+        const rangeDateBox = document.getElementById('rangeDateContainer');
+        const timeContainer = document.getElementById('timePeriodContainer');
+        const optionalGuide = document.getElementById('optionalGuideText');
+
+        if (type === '결석' || type === '체험학습') {
+            rangeDateBox.classList.remove('hidden');
+            document.getElementById('dateLabel').innerHTML = '날짜 <span class="optional-text">(시작일 필수, 종료일 선택)</span>';
+        } else {
+            rangeDateBox.classList.add('hidden');
+            document.getElementById('dateLabel').innerText = '날짜';
+        }
+
+        if (type === '결석') {
+            timeContainer.classList.add('hidden');
+            optionalGuide.classList.add('hidden');
+        } else if (type === '지각' || type === '조퇴') {
+            timeContainer.classList.remove('hidden');
+            optionalGuide.classList.add('hidden'); 
+        } else if (type === '체험학습' || type === '외부출연') {
+            timeContainer.classList.remove('hidden');
+            optionalGuide.classList.remove('hidden');
+        }
+    }
+
+    function submitData() {
+        const name = localStorage.getItem('studentName') || "익명";
+        const formType = document.getElementById('formTitle').innerText.replace(' 신청', '');
+        
+        const startDate = document.getElementById('startDate').value;
+        const useEndDate = document.getElementById('useEndDate').checked;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (!startDate) return alert("시작 날짜를 선택해주세요.");
+        if (useEndDate && !endDate) return alert("종료 날짜를 선택해주세요.");
+        
+        let dateStr = startDate;
+        if (useEndDate && endDate) dateStr += ` ~ ${endDate}`;
+
+        const mainReason = document.getElementById('reasonSelect').value;
+        let detailReason = document.getElementById('detailedReasonInput').value;
+        
+        if (formType !== '외부출연' && !mainReason) return alert("사유 분류를 선택해주세요.");
+        if (formType === '외부출연' && !detailReason) return alert("외부출연 내용을 작성해주세요.");
+
+        const timeInput = document.getElementById('timeInput').value;
+        const periodSelect = document.getElementById('periodSelect').value;
+        let timeStr = "";
+        if (timeInput) timeStr += ` ${timeInput}`;
+        if (periodSelect) timeStr += ` ${periodSelect}교시`;
+
+        let finalType = formType;
+        if (formType !== '외부출연') finalType += ` (${mainReason})`;
+        if (timeStr) finalType += ` [${timeStr.trim()}]`;
+
+        let finalReason = detailReason || "작성 안함";
+        finalReason += ` [날짜: ${dateStr}]`;
+
+        // 서류 2원화 분류 데이터 결합
+        let status = "";
+        if (formType === '체험학습') {
+            const app = document.querySelector('input[name="app"]:checked').value;
+            const report = document.querySelector('input[name="report"]:checked').value;
+            if (app === '제출 완료' && report === '제출 완료') status = '제출 완료';
+            else if (app === '미제출' && report === '미제출') status = '미제출 (신청서, 보고서)';
+            else if (app === '미제출') status = '미제출 (신청서)';
+            else status = '미제출 (보고서)';
+        } else if (formType === '결석') {
+            const absRep = document.querySelector('input[name="absReport"]:checked').value;
+            const absPrf = document.querySelector('input[name="absProof"]:checked').value;
+            if (absRep === '제출 완료' && absPrf === '제출 완료') status = '제출 완료';
+            else if (absRep === '미제출' && absPrf === '미제출') status = '미제출 (결석신고서, 증빙서류)';
+            else if (absRep === '미제출') status = '미제출 (결석신고서)';
+            else status = '미제출 (증빙서류)';
+        } else {
+            status = document.querySelector('input[name="proof"]:checked').value;
+        }
+
+        const payload = {
+            name: name,
+            type: finalType,
+            date: dateStr,
+            reason: finalReason,
+            status: status,
+            tardyCount: computedTardyCount 
+        };
+
+        showLoading("선생님께 제출하고 있습니다...");
+
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            alert("정상적으로 선생님께 접수되었습니다!");
+            setTimeout(() => { fetchMyData(); }, 500); 
+        })
+        .catch(error => {
+            hideLoading();
+            alert("제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.\n에러: " + error);
+        });
+    }
+
+    function showLoading(msg) {
+        document.getElementById('loadingText').innerText = msg;
+        document.getElementById('loadingOverlay').classList.remove('hidden');
+    }
+    function hideLoading() {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+</script>
+</body>
+</html>
