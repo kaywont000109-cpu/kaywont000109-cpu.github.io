@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교사용 출결 관리 대시보드</title>
+    <style>
+        :root { --primary: #1E3A8A; --primary-light: #EFF6FF; --danger: #EF4444; --danger-light: #FEE2E2; --warning: #F59E0B; --warning-light: #FEF3C7; --success: #10B981; --success-light: #D1FAE5; --bg: #F3F4F6; --text: #1F2937; --gray: #6B7280; --border: #E5E7EB; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg); margin: 0; padding: 25px; color: var(--text); }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { background: var(--primary); color: white; padding: 20px 30px; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(30,58,138,0.15); }
+        .header h1 { margin: 0; font-size: 1.6rem; font-weight: 800; display: flex; align-items: center; gap: 10px;}
+        .refresh-btn { background: rgba(255,255,255,0.2); border: none; padding: 8px 15px; color: white; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .refresh-btn:hover { background: rgba(255,255,255,0.3); }
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 25px; }
+        .card { background: white; padding: 20px; border-radius: 14px; text-align: center; border: 1px solid var(--border); cursor: pointer; }
+        .card.active { border-color: var(--primary); background: var(--primary-light); }
+        .card h3 { margin: 0; color: var(--gray); font-size: 0.9rem; }
+        .card .number { font-size: 2.2rem; font-weight: 800; margin-top: 8px; color: var(--primary); }
+        .tab-container { display: flex; gap: 8px; margin-bottom: 15px; }
+        .tab-btn { background: white; border: 1.5px solid var(--border); padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 0.85rem; color: var(--gray); }
+        .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .table-container { background: white; border-radius: 16px; padding: 20px; border: 1px solid var(--border); overflow-x: auto;}
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
+        th { background: #F9FAFB; color: var(--gray); font-size: 0.85rem; }
+        tr.row-normal { background: white; }
+        tr.row-caution { background: #FFFDF5; }
+        tr.row-strikeout { background: #FFF5F5; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; }
+        .badge.missing { background: var(--danger-light); color: #B91C1C; }
+        .badge.ok { background: var(--success-light); color: #065F46; }
+        .status-badge { padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
+        .status-badge.status-normal { background: var(--success-light); color: var(--success); }
+        .status-badge.status-caution { background: var(--warning-light); color: #D97706; border: 1px solid #F59E0B; }
+        .status-badge.status-strikeout { background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
+        
+        .strike-dots { display: flex; gap: 6px; align-items: center;}
+        .dot { width: 14px; height: 14px; border-radius: 50%; background: #E5E7EB; border: 1px solid #D1D5DB; }
+        .dot.yellow { background: var(--warning); border-color: #D97706; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+        .dot.red { background: var(--danger); border-color: #B91C1C; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+        
+        .btn-detail { background: #E5E7EB; border: none; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-card { background: white; width: 90%; max-width: 550px; border-radius: 20px; overflow: hidden; }
+        .modal-header { background: var(--primary); color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-close { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
+        .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+        .detail-item-box { background: var(--bg); padding: 12px; border-radius: 10px; margin-bottom: 8px; font-size: 0.9rem; }
+        .modal-section-title { font-weight: bold; margin-top: 15px; margin-bottom: 8px; color: var(--primary); border-left: 3px solid var(--primary); padding-left: 8px;}
+        #loadingMsg { text-align: center; font-size: 1.2rem; color: var(--primary); padding: 40px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>👨‍🏫 출결 관리자 대시보드 (DB 연동)</h1>
+        <button class="refresh-btn" onclick="fetchData()">↻ 새로고침</button>
+    </div>
+
+    <div class="summary-grid">
+        <div class="card active" id="card-all" onclick="filterTable('all')">
+            <h3>데이터 로딩중...</h3><div class="number" id="count-all">-</div>
+        </div>
+        <div class="card" id="card-caution" onclick="filterTable('caution')">
+            <h3>⚠️ 지각주의 (누적 2회)</h3><div class="number" id="count-caution" style="color:var(--warning)">-</div>
+        </div>
+        <div class="card" id="card-strikeout" onclick="filterTable('strikeout')">
+            <h3>🚨 성찰 대상 (누적 3회)</h3><div class="number" id="count-strikeout" style="color:var(--danger)">-</div>
+        </div>
+        <div class="card" id="card-missing" onclick="filterTable('missing')">
+            <h3>📂 서류 미제출</h3><div class="number" id="count-missing" style="color:#4B5563">-</div>
+        </div>
+    </div>
+
+    <div class="tab-container">
+        <button class="tab-btn active" id="tab-all" onclick="filterTable('all')">전체 목록</button>
+        <button class="tab-btn" id="tab-normal" onclick="filterTable('normal')">정상 상태</button>
+        <button class="tab-btn" id="tab-caution" onclick="filterTable('caution')">⚠️ 지각주의</button>
+        <button class="tab-btn" id="tab-strikeout" onclick="filterTable('strikeout')">🚨 성찰대상</button>
+        <button class="tab-btn" id="tab-missing" onclick="filterTable('missing')">📂 서류 미제출</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>최근 출결 분류</th>
+                    <th>단순 지각 누적 (Strike)</th>
+                    <th>출결 상태 분류</th>
+                    <th>증빙 서류 상태</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody id="studentTableBody">
+                <tr><td colspan="6" id="loadingMsg">스프레드시트에서 데이터를 불러오고 있습니다...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h2 id="modalStudentTitle">학생 상세 기록 확인</h2>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modalBodyContent"></div>
+    </div>
+</div>
+
+<script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwM7XAtLKeCpUg38vcNfjfxFWyV8N62nXuuASY1oBjppKeP3GRgU7AHXg3bdrCA4nhTNg/exec";
+    let studentData = {};
+
+    window.onload = fetchData;
+
+    async function fetchData() {
+        document.getElementById('studentTableBody').innerHTML = '<tr><td colspan="6" id="loadingMsg">데이터를 동기화 중입니다...</td></tr>';
+        
+        try {
+            const response = await fetch(WEB_APP_URL + "?t=" + new Date().getTime(), { cache: 'no-store' });
+            const rawData = await response.json();
+            
+            studentData = {};
+
+            rawData.forEach(row => {
+                if(!row.name) return; 
+                const name = row.name;
+                
+                if (!studentData[name]) {
+                    studentData[name] = {
+                        tardy: 0,
+                        records: [],
+                        missingDocs: [],
+                        latestType: ''
+                    };
+                }
+
+                // 발생 날짜 매핑 
+                let occurrenceDate = row.date || "";
+                if (!occurrenceDate && row.reason) {
+                    const match = row.reason.match(/\[(?:일자|날짜):\s*([^\]]+)\]/);
+                    if (match) occurrenceDate = match[1];
+                }
+                if (!occurrenceDate) {
+                    occurrenceDate = new Date(row.timestamp).toLocaleDateString();
+                }
+
+                let cleanReason = row.reason || "";
+                if (row.reason) {
+                    cleanReason = row.reason.replace(/\s*\[(?:일자|날짜):\s*[^\]]+\]/, "");
+                }
+
+                const record = {
+                    date: occurrenceDate,
+                    type: row.type,
+                    reason: cleanReason,
+                    status: row.status
+                };
+                studentData[name].records.push(record);
+                studentData[name].latestType = row.type; 
+
+                if (row.type.includes('단순지각')) {
+                    studentData[name].tardy++;
+                }
+
+                if (row.status.includes('미제출')) {
+                    studentData[name].missingDocs.push(`${occurrenceDate} ${row.type} - ${row.status}`);
+                }
+            });
+
+            processAndRenderData();
+
+        } catch (error) {
+            document.getElementById('studentTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">데이터 로드 실패: 인터넷 연결이나 URL을 확인해주세요.</td></tr>`;
+        }
+    }
+
+    function processAndRenderData() {
+        const tbody = document.getElementById('studentTableBody');
+        tbody.innerHTML = '';
+        
+        let allCount = 0, cautionCount = 0, strikeoutCount = 0, missingCount = 0;
+
+        for (const name in studentData) {
+            const student = studentData[name];
+            allCount++;
+
+            if (student.tardy === 0) {
+                student.statusClass = 'status-normal'; student.statusLabel = '정상'; student.statusText = '정상 상태입니다.';
+            } else if (student.tardy === 1) {
+                student.statusClass = 'status-normal'; student.statusLabel = '정상 (주의 전단계)'; student.statusText = '단순 지각이 1회 누적되었습니다.';
+            } else if (student.tardy === 2) {
+                student.statusClass = 'status-caution'; student.statusLabel = '⚠️ 지각주의(2회)'; student.statusText = '⚠️ 옐로카드! 단순 지각 2회 누적';
+                cautionCount++;
+            } else {
+                student.statusClass = 'status-strikeout'; student.statusLabel = '🚨 성찰 대상'; student.statusText = '🚨 삼진아웃(3회 이상)! 방과후 성찰계획서 대상';
+                strikeoutCount++;
+            }
+
+            const isMissing = student.missingDocs.length > 0;
+            if (isMissing) missingCount++;
+            const rowStatusTag = student.tardy >= 3 ? 'strikeout' : (student.tardy === 2 ? 'caution' : 'normal');
+
+            let dotsHTML = '';
+            if(student.tardy >= 3) {
+                dotsHTML = `<span class="dot red"></span><span class="dot red"></span><span class="dot red"></span> <span style="color:var(--danger); font-size:0.85rem; font-weight:bold;">${student.tardy}회(아웃)</span>`;
+            } else {
+                for(let i=1; i<=3; i++) {
+                    dotsHTML += (i <= student.tardy) ? `<span class="dot yellow"></span>` : `<span class="dot"></span>`;
+                }
+                dotsHTML += ` <span style="font-size:0.85rem; font-weight:bold; color:var(--gray)">${student.tardy}회</span>`;
+            }
+
+            // 모달창에 넘겨주기 위해 UI 저장
+            student.modalDotsHTML = dotsHTML;
+
+            const tr = document.createElement('tr');
+            tr.className = `row-${rowStatusTag}`;
+            tr.setAttribute('data-status', rowStatusTag);
+            tr.setAttribute('data-missing', isMissing ? 'true' : 'false');
+
+            tr.innerHTML = `
+                <td style="font-weight: bold;">${name}</td>
+                <td style="color: var(--gray); font-size: 0.9rem;">${student.latestType}</td>
+                <td><div class="strike-dots">${dotsHTML}</div></td>
+                <td><span class="status-badge ${student.statusClass}">${student.statusLabel}</span></td>
+                <td><span class="badge ${isMissing ? 'missing' : 'ok'}">${isMissing ? '증빙서류 미제출' : '모두 제출됨'}</span></td>
+                <td><button class="btn-detail" onclick="openDetailModal('${name}')">상세보기</button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        document.getElementById('count-all').innerText = allCount + '명';
+        document.getElementById('count-caution').innerText = cautionCount + '명';
+        document.getElementById('count-strikeout').innerText = strikeoutCount + '명';
+        document.getElementById('count-missing').innerText = missingCount + '명';
+    }
+
+    function filterTable(filterType) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.card').forEach(card => card.classList.remove('active'));
+        if (document.getElementById('tab-' + filterType)) document.getElementById('tab-' + filterType).classList.add('active');
+        if (document.getElementById('card-' + filterType)) document.getElementById('card-' + filterType).classList.add('active');
+
+        const rows = document.querySelectorAll('#studentTableBody tr');
+        rows.forEach(row => {
+            if (!row.hasAttribute('data-status')) return; 
+            const status = row.getAttribute('data-status');
+            const isMissing = row.getAttribute('data-missing') === 'true';
+
+            if (filterType === 'all') row.style.display = '';
+            else if (filterType === 'caution' && status === 'caution') row.style.display = '';
+            else if (filterType === 'strikeout' && status === 'strikeout') row.style.display = '';
+            else if (filterType === 'normal' && status === 'normal') row.style.display = '';
+            else if (filterType === 'missing' && isMissing) row.style.display = '';
+            else row.style.display = 'none';
+        });
+    }
+
+    function openDetailModal(name) {
+        const student = studentData[name];
+        document.getElementById('modalStudentTitle').innerText = `${name} 학생 종합 현황`;
+
+        let missingDocsHTML = student.missingDocs.length > 0 
+            ? `<ul style="margin:0; padding-left:20px; color:var(--danger); font-weight:500;">${student.missingDocs.map(doc => `<li>${doc}</li>`).join('')}</ul>`
+            : `<span style="color:var(--success); font-weight:bold;">✅ 누락된 서류가 없습니다.</span>`;
+
+        // 출결 기록 리스트 (미제출 단어 포함 시 빨간색 처리 적용됨)
+        let recordsHTML = student.records.map(rec => {
+            const isMissing = rec.status.includes('미제출');
+            const badgeClass = isMissing ? 'missing' : 'ok';
+            return `
+                <div class="detail-item-box">
+                    <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:5px;">
+                        <span>📅 ${rec.date}</span>
+                        <span class="badge ${badgeClass}">${rec.status}</span>
+                    </div>
+                    <div><b>분류:</b> ${rec.type}</div>
+                    <div><b>세부사유:</b> ${rec.reason}</div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('modalBodyContent').innerHTML = `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px;">
+                <span style="font-size: 1.2rem; font-weight: bold;">${name}</span>
+                <span class="status-badge ${student.statusClass}">${student.statusLabel}</span>
+            </div>
+            
+            <div class="modal-section-title">🏃 단순 지각 안내</div>
+            <div class="detail-item-box" style="display:flex; flex-direction:column; gap:8px; background:var(--primary-light);">
+                <div class="strike-dots">${student.modalDotsHTML}</div>
+                <div style="font-size:0.85rem; color:var(--gray);">${student.statusText}</div>
+            </div>
+
+            <div class="modal-section-title">📂 미제출 서류 건</div>
+            <div class="detail-item-box" style="${student.missingDocs.length > 0 ? 'background:#FFF5F5; border:1px solid #FEB2B2;' : ''}">
+                ${missingDocsHTML}
+            </div>
+
+            <div class="modal-section-title">📋 올해 신청 기록 내역</div>
+            <div>${recordsHTML}</div>
+            <button onclick="closeModal()" style="width:100%; padding:12px; margin-top:20px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">확인 완료</button>
+        `;
+        document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeModal() { document.getElementById('detailModal').classList.remove('active'); }
+</script>
+
+</body>
+</html>
