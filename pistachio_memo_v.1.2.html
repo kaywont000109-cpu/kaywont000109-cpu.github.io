@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pistachio Memo OS</title>
+    <!-- 픽셀 폰트 (Galmuri) 및 깔끔한 산세리프 폰트 로드 -->
+    <link href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f4f9f1; /* 아주 연한 피스타치오 배경 */
+            --point-color: #b5c99a; /* 피스타치오 메인 컬러 */
+            --point-hover: #97a97f;
+            --text-main: #4a5c40;
+            --text-light: #718365;
+            --white: #ffffff;
+            --window-border: #e0e7d9;
+            --danger-color: #e07a5f;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Galmuri9', 'Pretendard', 'Malgun Gothic', sans-serif;
+        }
+
+        body {
+            background-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* 메인 윈도우 창 */
+        .os-window {
+            width: 100%;
+            max-width: 600px;
+            height: 95vh;
+            background-color: var(--white);
+            border: 2px solid var(--window-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: row;
+            box-shadow: 0 4px 20px rgba(181, 201, 154, 0.2);
+            overflow: hidden;
+        }
+
+        /* 좌측 폴더 영역 (사이드바) */
+        .sidebar {
+            width: 120px;
+            background-color: var(--bg-color);
+            border-right: 2px solid var(--window-border);
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .folder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .folder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            color: var(--text-light);
+            font-size: 12px;
+            transition: 0.2s;
+            padding: 10px 0;
+            border-radius: 8px;
+        }
+
+        .folder:hover, .folder.active {
+            background-color: var(--point-color);
+            color: var(--white);
+        }
+
+        .folder-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .reset-btn {
+            background: transparent;
+            border: 1px dashed var(--text-light);
+            color: var(--text-light);
+            border-radius: 6px;
+            padding: 6px 0;
+            font-size: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .reset-btn:hover {
+            border-color: var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        /* 우측 채팅 영역 */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fafdf8;
+        }
+
+        /* 말풍선이 쌓이는 곳 */
+        .chat-history {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .bubble-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .bubble-tag {
+            font-size: 10px;
+            color: var(--text-light);
+            margin-bottom: 4px;
+            margin-right: 2px;
+        }
+
+        .bubble {
+            background-color: var(--point-color);
+            color: var(--white);
+            padding: 12px 16px;
+            border-radius: 16px;
+            border-bottom-right-radius: 4px;
+            max-width: 80%;
+            font-size: 14px;
+            line-height: 1.4;
+            word-break: break-all;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        /* 하단 입력창 */
+        .input-area {
+            height: 70px;
+            background-color: var(--white);
+            border-top: 2px solid var(--window-border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 10px;
+        }
+
+        .input-box {
+            flex: 1;
+            height: 40px;
+            border: 2px solid var(--window-border);
+            border-radius: 20px;
+            padding: 0 15px;
+            font-size: 14px;
+            outline: none;
+            color: var(--text-main);
+            background-color: var(--bg-color);
+        }
+
+        .input-box:focus {
+            border-color: var(--point-color);
+        }
+
+        .send-btn {
+            background-color: var(--point-color);
+            color: var(--white);
+            border: none;
+            border-radius: 20px;
+            padding: 0 20px;
+            height: 40px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+
+        .send-btn:hover {
+            background-color: var(--point-hover);
+        }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--point-color); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="os-window">
+    <!-- 좌측 카테고리 폴더 -->
+    <div class="sidebar">
+        <div class="folder-list">
+            <div class="folder active" data-category="ALL" onclick="changeCategory('ALL')">
+                <span class="folder-icon">📁</span>
+                <span>ALL</span>
+            </div>
+            <div class="folder" data-category="Brain Dump" onclick="changeCategory('Brain Dump')">
+                <span class="folder-icon">🧠</span>
+                <span>Brain Dump</span>
+            </div>
+            <div class="folder" data-category="Little Wins" onclick="changeCategory('Little Wins')">
+                <span class="folder-icon">🏆</span>
+                <span>Little Wins</span>
+            </div>
+            <div class="folder" data-category="일상 한 조각" onclick="changeCategory('일상 한 조각')">
+                <span class="folder-icon">🌿</span>
+                <span>일상 한 조각</span>
+            </div>
+        </div>
+        <button class="reset-btn" onclick="clearMemos()">CLEAR</button>
+    </div>
+
+    <!-- 우측 채팅창 -->
+    <div class="chat-container">
+        <div class="chat-history" id="chatHistory"></div>
+
+        <div class="input-area">
+            <input type="text" id="memoInput" class="input-box" placeholder="메모를 빠르게 적어보세요..." onkeypress="handleEnter(event)">
+            <button class="send-btn" onclick="sendMemo()">SEND</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 최초 방문 시 나타날 샘플 메모
+    const defaultMemos = [
+        { category: 'Brain Dump', text: '노션 대시보드 폰트는 픽셀로 설정하기' },
+        { category: 'Little Wins', text: '오늘 아침 7시 기상 성공! 💪' },
+        { category: '일상 한 조각', text: '점심에 먹은 피스타치오 젤라또 최고였다.' }
+    ];
+
+    // 브라우저 저장소(localStorage)에서 기존 데이터 불러오기
+    let memos = JSON.parse(localStorage.getItem('pistachio_memos')) || defaultMemos;
+    let currentCategory = 'ALL';
+
+    // 브라우저 저장소에 메모 상태 반영
+    function saveMemosToStorage() {
+        localStorage.setItem('pistachio_memos', JSON.stringify(memos));
+    }
+
+    // 화면 렌더링 함수
+    function renderMemos() {
+        const history = document.getElementById('chatHistory');
+        history.innerHTML = '';
+
+        const filteredMemos = currentCategory === 'ALL' 
+            ? memos 
+            : memos.filter(memo => memo.category === currentCategory);
+
+        filteredMemos.forEach(memo => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'bubble-wrapper';
+
+            const tag = document.createElement('div');
+            tag.className = 'bubble-tag';
+            tag.innerText = `[${memo.category}]`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerText = memo.text;
+
+            wrapper.appendChild(tag);
+            wrapper.appendChild(bubble);
+            history.appendChild(wrapper);
+        });
+
+        history.scrollTop = history.scrollHeight;
+    }
+
+    // 카테고리(폴더) 변경 함수
+    function changeCategory(category) {
+        currentCategory = category;
+        
+        document.querySelectorAll('.folder').forEach(el => {
+            el.classList.remove('active');
+            if(el.getAttribute('data-category') === category) {
+                el.classList.add('active');
+            }
+        });
+
+        renderMemos();
+    }
+
+    // 엔터키 입력 처리
+    function handleEnter(event) {
+        if (event.key === 'Enter') {
+            sendMemo();
+        }
+    }
+
+    // SEND 버튼 클릭 - 저장 및 노션 웹훅 전송
+    async function sendMemo() {
+        const input = document.getElementById('memoInput');
+        const text = input.value.trim();
+
+        if (text === '') return;
+
+        const categoryToSave = currentCategory === 'ALL' ? 'Brain Dump' : currentCategory;
+        const webhookUrl = "https://hook.eu1.make.com/csrm75uyzwdm10ngxufdx4ef4jko37im";
+
+        // 1. 메모 추가 후 localStorage에 지속 저장
+        memos.push({ category: categoryToSave, text: text });
+        saveMemosToStorage();
+
+        input.value = '';
+        renderMemos();
+
+        // 2. Make.com 웹훅 전송 (노션 DB 저장용)
+        try {
+            await fetch(webhookUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    text: text,
+                    category: categoryToSave
+                })
+            });
+            console.log("웹훅 전송 성공!");
+        } catch (error) {
+            console.error("전송 중 에러 발생:", error);
+        }
+    }
+
+    // 저장된 메모 비우기 (필요 시 활용)
+    function clearMemos() {
+        if (confirm("위젯에 저장된 모든 메모를 초기화하시겠습니까?")) {
+            localStorage.removeItem('pistachio_memos');
+            memos = [...defaultMemos];
+            renderMemos();
+        }
+    }
+
+    // 초기 렌더링 실행
+    renderMemos();
+</script>
+
+</body>
+</html>
