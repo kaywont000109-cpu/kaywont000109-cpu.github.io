@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pistachio Memo OS</title>
+    <!-- 픽셀 폰트 (Galmuri) 및 깔끔한 산세리프 폰트 로드 -->
+    <link href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f4f9f1; /* 아주 연한 피스타치오 배경 */
+            --point-color: #b5c99a; /* 피스타치오 메인 컬러 */
+            --point-hover: #97a97f;
+            --text-main: #4a5c40;
+            --text-light: #718365;
+            --white: #ffffff;
+            --window-border: #e0e7d9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            /* 픽셀 폰트 적용, 깨질 경우 산세리프 대체 */
+            font-family: 'Galmuri9', 'Pretendard', 'Malgun Gothic', sans-serif;
+        }
+
+        body {
+            background-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* 메인 윈도우 창 */
+        .os-window {
+            width: 100%;
+            max-width: 600px;
+            height: 95vh;
+            background-color: var(--white);
+            border: 2px solid var(--window-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: row;
+            box-shadow: 0 4px 20px rgba(181, 201, 154, 0.2);
+            overflow: hidden;
+        }
+
+        /* 좌측 폴더 영역 (사이드바) */
+        .sidebar {
+            width: 120px;
+            background-color: var(--bg-color);
+            border-right: 2px solid var(--window-border);
+            padding: 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .folder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            color: var(--text-light);
+            font-size: 12px;
+            transition: 0.2s;
+            padding: 10px 0;
+            border-radius: 8px;
+        }
+
+        .folder:hover, .folder.active {
+            background-color: var(--point-color);
+            color: var(--white);
+        }
+
+        .folder-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        /* 우측 채팅 영역 */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fafdf8;
+        }
+
+        /* 말풍선이 쌓이는 곳 */
+        .chat-history {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .bubble-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end; /* 내가 쓴 메모이므로 우측 정렬 */
+        }
+
+        .bubble-tag {
+            font-size: 10px;
+            color: var(--text-light);
+            margin-bottom: 4px;
+            margin-right: 2px;
+        }
+
+        .bubble {
+            background-color: var(--point-color);
+            color: var(--white);
+            padding: 12px 16px;
+            border-radius: 16px;
+            border-bottom-right-radius: 4px;
+            max-width: 80%;
+            font-size: 14px;
+            line-height: 1.4;
+            word-break: break-all;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        /* 하단 입력창 */
+        .input-area {
+            height: 70px;
+            background-color: var(--white);
+            border-top: 2px solid var(--window-border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 10px;
+        }
+
+        .input-box {
+            flex: 1;
+            height: 40px;
+            border: 2px solid var(--window-border);
+            border-radius: 20px;
+            padding: 0 15px;
+            font-size: 14px;
+            outline: none;
+            color: var(--text-main);
+            background-color: var(--bg-color);
+        }
+
+        .input-box:focus {
+            border-color: var(--point-color);
+        }
+
+        .send-btn {
+            background-color: var(--point-color);
+            color: var(--white);
+            border: none;
+            border-radius: 20px;
+            padding: 0 20px;
+            height: 40px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+
+        .send-btn:hover {
+            background-color: var(--point-hover);
+        }
+
+        /* 스크롤바 커스텀 (레트로 느낌) */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--point-color); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="os-window">
+    <!-- 좌측 카테고리 폴더 -->
+    <div class="sidebar">
+        <div class="folder active" data-category="ALL" onclick="changeCategory('ALL')">
+            <span class="folder-icon">📁</span>
+            <span>ALL</span>
+        </div>
+        <div class="folder" data-category="Brain Dump" onclick="changeCategory('Brain Dump')">
+            <span class="folder-icon">🧠</span>
+            <span>Brain Dump</span>
+        </div>
+        <div class="folder" data-category="Little Wins" onclick="changeCategory('Little Wins')">
+            <span class="folder-icon">🏆</span>
+            <span>Little Wins</span>
+        </div>
+        <div class="folder" data-category="일상 한 조각" onclick="changeCategory('일상 한 조각')">
+            <span class="folder-icon">🌿</span>
+            <span>일상 한 조각</span>
+        </div>
+    </div>
+
+    <!-- 우측 채팅창 -->
+    <div class="chat-container">
+        <div class="chat-history" id="chatHistory">
+            <!-- 자바스크립트로 말풍선이 여기에 생성됩니다. -->
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="memoInput" class="input-box" placeholder="메모를 빠르게 적어보세요..." onkeypress="handleEnter(event)">
+            <button class="send-btn" onclick="sendMemo()">SEND</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 임시 메모 저장 배열 (위젯 상에서 보이는 용도)
+    let memos = [
+        { category: 'Brain Dump', text: '노션 대시보드 폰트는 픽셀로 설정하기' },
+        { category: 'Little Wins', text: '오늘 아침 7시 기상 성공! 💪' },
+        { category: '일상 한 조각', text: '점심에 먹은 피스타치오 젤라또 최고였다.' }
+    ];
+    let currentCategory = 'ALL';
+
+    // 화면 렌더링 함수
+    function renderMemos() {
+        const history = document.getElementById('chatHistory');
+        history.innerHTML = ''; // 초기화
+
+        // 현재 카테고리에 맞는 메모만 필터링
+        const filteredMemos = currentCategory === 'ALL' 
+            ? memos 
+            : memos.filter(memo => memo.category === currentCategory);
+
+        filteredMemos.forEach(memo => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'bubble-wrapper';
+
+            const tag = document.createElement('div');
+            tag.className = 'bubble-tag';
+            tag.innerText = `[${memo.category}]`; // 어떤 카테고리인지 작게 표시
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerText = memo.text;
+
+            wrapper.appendChild(tag);
+            wrapper.appendChild(bubble);
+            history.appendChild(wrapper);
+        });
+
+        // 스크롤 맨 아래로 이동
+        history.scrollTop = history.scrollHeight;
+    }
+
+    // 카테고리(폴더) 변경 함수
+    function changeCategory(category) {
+        currentCategory = category;
+        
+        // UI 액티브 상태 변경
+        document.querySelectorAll('.folder').forEach(el => {
+            el.classList.remove('active');
+            if(el.getAttribute('data-category') === category) {
+                el.classList.add('active');
+            }
+        });
+
+        renderMemos();
+    }
+
+    // 엔터키 입력 처리
+    function handleEnter(event) {
+        if (event.key === 'Enter') {
+            sendMemo();
+        }
+    }
+
+    // SEND 버튼 클릭 - 메모 전송 및 노션 웹훅 연동 함수
+    async function sendMemo() {
+        const input = document.getElementById('memoInput');
+        const text = input.value.trim();
+
+        if (text === '') return;
+
+        // 현재 선택된 카테고리에 저장 (ALL 상태면 Brain Dump로 기본 지정)
+        const categoryToSave = currentCategory === 'ALL' ? 'Brain Dump' : currentCategory;
+        
+        // 👇 Make.com에서 발급받은 웹훅 URL을 여기에 붙여넣어 주세요.
+        const webhookUrl = "https://hook.eu1.make.com/csrm75uyzwdm10ngxufdx4ef4jko37im";
+
+        // 1. 화면 말풍선 즉시 업데이트 (UI 피드백)
+        memos.push({ category: categoryToSave, text: text });
+        input.value = ''; // 입력창 비우기
+        renderMemos(); // 화면 갱신
+
+        // 2. Make.com 웹훅으로 데이터 전송
+        try {
+            await fetch(webhookUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    text: text,
+                    category: categoryToSave
+                })
+            });
+            console.log("웹훅 전송 성공! (노션 확인 필요)");
+        } catch (error) {
+            console.error("전송 중 에러 발생:", error);
+        }
+    }
+
+    // 초기 렌더링
+    renderMemos();
+</script>
+
+</body>
+</html>
