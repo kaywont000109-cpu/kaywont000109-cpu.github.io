@@ -312,7 +312,7 @@
     let memos = JSON.parse(localStorage.getItem('pistachio_memos_v3')) || defaultMemos;
     let currentCategory = 'ALL';
     let replyTargetMemo = null;
-    let isClearConfirming = false; // 삭제 confirmation 상태 체크 변수
+    let isClearConfirming = false;
 
     function saveMemosToStorage() {
         localStorage.setItem('pistachio_memos_v3', JSON.stringify(memos));
@@ -451,7 +451,7 @@
         }
     }
 
-    // 💡 노션 팝업 차단을 회피하는 2단계 확인 삭제 로직
+    // 💡 초기 예시 문장까지 완전하게 지우는 전체 삭제 로직
     function clearMemos() {
         const btn = document.getElementById('clearBtn');
         if (!isClearConfirming) {
@@ -460,7 +460,6 @@
             btn.style.color = "var(--danger-color)";
             btn.style.borderColor = "var(--danger-color)";
             
-            // 3초 후 다시 미클릭 시 원래 상태로 복구
             setTimeout(() => {
                 isClearConfirming = false;
                 btn.innerText = "CLEAR";
@@ -468,10 +467,11 @@
                 btn.style.borderColor = "var(--text-light)";
             }, 3000);
         } else {
-            // 두 번째 클릭 시 실제 삭제 수행
-            localStorage.removeItem('pistachio_memos_v3');
-            memos = [...defaultMemos];
+            // 예시 문장을 포함한 모든 메모를 완전 삭제 (빈 배열)
+            memos = [];
+            saveMemosToStorage();
             renderMemos();
+
             isClearConfirming = false;
             btn.innerText = "CLEAR";
             btn.style.color = "var(--text-light)";
