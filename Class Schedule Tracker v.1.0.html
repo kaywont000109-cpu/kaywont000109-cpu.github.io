@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 스케줄 트래커</title>
+  
+  <!-- React & ReactDOM CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel CDN -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const DAYS_KR = ["일", "월", "화", "수", "목", "금", "토"];
+
+    const TIME_SLOTS = [
+      { name: "아침조회", start: "8:10", end: "8:30", type: "special" },
+      { name: "쉬는시간", start: "8:30", end: "8:40", type: "break" },
+      { name: "1교시", start: "8:40", end: "9:30", type: "class", period: 1 },
+      { name: "쉬는시간", start: "9:30", end: "9:40", type: "break" },
+      { name: "2교시", start: "9:40", end: "10:30", type: "class", period: 2 },
+      { name: "쉬는시간", start: "10:30", end: "10:40", type: "break" },
+      { name: "3교시", start: "10:40", end: "11:30", type: "class", period: 3 },
+      { name: "쉬는시간", start: "11:30", end: "11:40", type: "break" },
+      { name: "4교시", start: "11:40", end: "12:30", type: "class", period: 4 },
+      { name: "점심시간", start: "12:30", end: "13:30", type: "special" },
+      { name: "5교시", start: "13:30", end: "14:20", type: "class", period: 5 },
+      { name: "쉬는시간", start: "14:20", end: "14:30", type: "break" },
+      { name: "6교시", start: "14:30", end: "15:20", type: "class", period: 6 },
+      { name: "쉬는시간", start: "15:20", end: "15:30", type: "break" },
+      { name: "7교시", start: "15:30", end: "16:20", type: "class", period: 7 },
+      { name: "종례/청소", start: "16:20", end: "16:30", type: "special" },
+    ];
+
+    const WEEKLY_SCHEDULE = {
+      1: [
+        { period: 2, className: "1반" }, { period: 3, className: "5반" },
+        { period: 4, className: "6반" }, { period: 6, className: "8반" },
+      ],
+      2: [
+        { period: 1, className: "8반" }, { period: 2, className: "6반" },
+        { period: 5, className: "3반" }, { period: 6, className: "2반" },
+      ],
+      3: [
+        { period: 3, className: "7반" }, { period: 4, className: "3반" },
+        { period: 7, className: "4반" },
+      ],
+      4: [
+        { period: 1, className: "자율" }, { period: 2, className: "예배" },
+        { period: 3, className: "2반" }, { period: 5, className: "4반" },
+      ],
+      5: [
+        { period: 1, className: "5반" }, { period: 3, className: "7반" },
+        { period: 4, className: "1반" },
+      ],
+      6: [],
+      0: [],
+    };
+
+    function to12Hour(timeStr) {
+      const [h, m] = timeStr.split(":").map(Number);
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:${pad(m)}`;
+    }
+
+    function toMinutes(timeStr) {
+      const [h, m] = timeStr.split(":").map(Number);
+      return h * 60 + m;
+    }
+
+    function getCurrentSlot(now) {
+      const totalMinutes = now.getHours() * 60 + now.getMinutes();
+      return TIME_SLOTS.find((s) => totalMinutes >= toMinutes(s.start) && totalMinutes < toMinutes(s.end)) || null;
+    }
+
+    function getProgress(slot, now) {
+      const current = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      const start = toMinutes(slot.start);
+      const end = toMinutes(slot.end);
+      return Math.min(100, Math.max(0, ((current - start) / (end - start)) * 100));
+    }
+
+    function getRemainingMinutes(slot, now) {
+      const current = now.getHours() * 60 + now.getMinutes();
+      return Math.max(0, toMinutes(slot.end) - current);
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    const P = {
+      cream:   "#F6F0D7",
+      light:   "#C5D89D",
+      mid:     "#9CAB84",
+      deep:    "#89986D",
+      ink:     "#2e3820",
+      inkMid:  "#4a5e35",
+      inkFade: "#8a9e70",
+    };
+
+    function App() {
+      const [now, setNow] = useState(new Date());
+
+      useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(id);
+      }, []);
+
+      const dayOfWeek = now.getDay();
+      const currentSlot = getCurrentSlot(now);
+      const todaySchedule = WEEKLY_SCHEDULE[dayOfWeek] || [];
+
+      const currentClass =
+        currentSlot?.type === "class" && currentSlot.period != null
+          ? todaySchedule.find((c) => c.period === currentSlot.period) || null
+          : null;
+
+      const nextClass = (() => {
+        if (!currentSlot) return null;
+        const currentEnd = toMinutes(currentSlot.end);
+        const totalNow = now.getHours() * 60 + now.getMinutes();
+        return (
+          todaySchedule.find((c) => {
+            const slot = TIME_SLOTS.find((s) => s.period === c.period);
+            return slot && toMinutes(slot.start) >= (currentSlot.type === "class" ? currentEnd : totalNow);
+          }) || null
+        );
+      })();
+
+      const hours24 = now.getHours();
+      const ampm = hours24 < 12 ? "오전" : "오후";
+      const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+      const timeStr = `${ampm} ${pad(hours12)}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const dateStr = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 (${DAYS_KR[dayOfWeek]})`;
+
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const progress = currentSlot ? getProgress(currentSlot, now) : 0;
+      const remaining = currentSlot ? getRemainingMinutes(currentSlot, now) : 0;
+
+      // 쉬는 시간을 제외한 실제 일정 항목들 (총 10개)
+      const mainSlots = TIME_SLOTS.filter((s) => s.type !== "break");
+
+      return (
+        <div className="min-h-screen text-slate-800 flex flex-col">
+          {/* Header */}
+          <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: P.deep }} />
+              <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: P.mid }}>Live Schedule</span>
+            </div>
+            <span className="text-sm font-medium" style={{ color: P.mid }}>{dateStr}</span>
+          </header>
+
+          {/* Main Layout */}
+          <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 items-start">
+            
+            {/* 좌측 단: 시계 + 현재 교시 + 주간 스케줄 (기존 유지) */}
+            <div className="lg:col-span-5 flex flex-col gap-6 md:gap-8">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6">
+                {/* 시계 카드 */}
+                <div className="bg-white border border-slate-200 shadow-sm rounded-3xl p-6 md:p-8 flex flex-col justify-center">
+                  <span className="text-xs tracking-widest uppercase mb-2 font-semibold" style={{ color: P.mid }}>현재 시각</span>
+                  <div
+                    className="text-4xl md:text-5xl font-bold leading-tight"
+                    style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "-0.02em", color: P.ink }}
+                  >
+                    {timeStr}
+                  </div>
+                </div>
+
+                {/* 현재 교시 카드 */}
+                <div
+                  className="rounded-3xl p-6 md:p-8 flex flex-col justify-center relative shadow-sm"
+                  style={{
+                    background: `linear-gradient(135deg, ${P.light}30 0%, ${P.cream} 100%)`,
+                    border: `1px solid ${P.mid}40`,
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs tracking-widest uppercase font-semibold" style={{ color: P.mid }}>현재 교시</span>
+                    {!isWeekend && nextClass && currentSlot?.type !== "class" && (
+                      <span className="text-xs font-medium" style={{ color: P.inkFade }}>
+                        다음: <span className="font-semibold" style={{ color: P.inkMid }}>{nextClass.period}교시 {nextClass.className}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {isWeekend ? (
+                    <div className="py-6 flex items-center">
+                      <span className="text-2xl font-semibold" style={{ color: P.inkFade }}>주말 — 편히 쉬세요!</span>
+                    </div>
+                  ) : currentSlot ? (
+                    <React.Fragment>
+                      <div className="flex items-baseline gap-3 mt-1">
+                        <span className="text-3xl md:text-4xl font-bold" style={{ color: P.deep }}>
+                          {currentSlot.name}
+                        </span>
+                        {currentClass && (
+                          <span className="text-2xl font-semibold" style={{ color: P.inkMid }}>
+                            {currentClass.className}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-6">
+                        <div className="flex justify-between text-xs mb-2 font-medium" style={{ color: P.inkFade }}>
+                          <span>{to12Hour(currentSlot.start)}</span>
+                          <span className="font-semibold" style={{ color: P.inkMid }}>{remaining}분 남음</span>
+                          <span>{to12Hour(currentSlot.end)}</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: `${P.mid}30` }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-1000"
+                            style={{
+                              width: `${progress}%`,
+                              background: `linear-gradient(90deg, ${P.deep}, ${P.light})`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ) : (
+                    <div className="py-6 flex items-center">
+                      <span className="text-2xl font-semibold" style={{ color: P.inkFade }}>수업 종료</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 주간 스케줄 카드 */}
+              <div className="bg-white border border-slate-200 shadow-sm rounded-3xl p-6 md:p-8">
+                <span className="text-xs tracking-widest uppercase block mb-6 font-semibold" style={{ color: P.mid }}>주간 스케줄 요약</span>
+                <div className="grid grid-cols-5 gap-2 md:gap-3">
+                  {[1, 2, 3, 4, 5].map((day) => {
+                    const isToday = dayOfWeek === day;
+                    const classes = WEEKLY_SCHEDULE[day] || [];
+                    return (
+                      <div
+                        key={day}
+                        className="rounded-2xl p-3 md:p-4 transition-all"
+                        style={{
+                          background: isToday ? `${P.light}40` : `${P.mid}10`,
+                          border: isToday ? `1px solid ${P.deep}50` : `1px solid transparent`,
+                        }}
+                      >
+                        <div className="text-sm font-bold mb-3 text-center" style={{ color: isToday ? P.deep : P.mid }}>{DAYS_KR[day]}</div>
+                        <div className="space-y-1.5">
+                          {[1, 2, 3, 4, 5, 6, 7].map((p) => {
+                            const entry = classes.find((c) => c.period === p);
+                            return (
+                              <div key={p} className="flex items-center gap-1.5">
+                                <span className="text-[11px] flex-shrink-0 w-3 text-right font-mono" style={{ color: isToday ? `${P.deep}80` : `${P.mid}80` }}>{p}</span>
+                                <span className="text-xs font-semibold truncate" style={{ color: isToday ? P.inkMid : P.mid }}>{entry ? entry.className : ""}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 우측 단: 오늘의 일정 상세 (아주 미세하게 칸 높이 압축) */}
+            <div className="lg:col-span-7 bg-white border border-slate-200 shadow-sm rounded-3xl p-6 md:p-8 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-3.5">
+                <span className="text-sm tracking-widest uppercase font-bold" style={{ color: P.mid }}>
+                  오늘의 일정 상세 ({DAYS_KR[dayOfWeek]}요일)
+                </span>
+                {!isWeekend && (
+                  <span className="text-xs font-semibold bg-slate-100 px-3 py-1 rounded-full text-slate-500">
+                    총 {todaySchedule.length}교시
+                  </span>
+                )}
+              </div>
+
+              {isWeekend ? (
+                <div className="flex-1 flex items-center justify-center min-h-[350px] text-lg font-medium" style={{ color: P.inkFade }}>
+                  오늘은 계획된 일정이 없습니다. ☕️
+                </div>
+              ) : todaySchedule.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center min-h-[350px] text-lg font-medium" style={{ color: P.inkFade }}>
+                  오늘은 수업이 없습니다.
+                </div>
+              ) : (
+                /* 간격(space-y-2)으로 세밀하게 축소 */
+                <div className="space-y-2">
+                  {mainSlots.map((slot) => {
+                    const isSpecial = slot.type === "special";
+                    const entry = slot.type === "class" ? todaySchedule.find((c) => c.period === slot.period) : null;
+                    const isCurrent = currentSlot?.name === slot.name && currentSlot?.type === slot.type;
+                    const isPast = now.getHours() * 60 + now.getMinutes() >= toMinutes(slot.end);
+
+                    return (
+                      <div
+                        key={slot.name}
+                        /* 세로 패딩 py-2.5 및 뱃지 높이 h-9 적용 */
+                        className={`flex items-center gap-4 rounded-2xl px-4 py-2.5 transition-all ${isCurrent ? 'shadow-md scale-[1.01]' : ''}`}
+                        style={{
+                          background: isCurrent ? `${P.light}40` : isSpecial ? `${P.mid}10` : entry ? `${P.deep}08` : "transparent",
+                          border: isCurrent ? `1px solid ${P.deep}70` : isSpecial ? `1px solid ${P.mid}25` : entry ? `1px solid ${P.mid}15` : "1px solid transparent",
+                        }}
+                      >
+                        {/* 교시 / 구분 뱃지 */}
+                        <div
+                          className="w-12 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                          style={{
+                            background: isCurrent ? `${P.deep}30` : isSpecial ? `${P.mid}20` : entry ? isPast ? `${P.mid}15` : `${P.light}60` : "transparent",
+                            color: isCurrent ? P.deep : isSpecial ? isPast ? P.inkFade : P.mid : entry ? isPast ? P.inkFade : P.inkMid : `${P.mid}60`,
+                          }}
+                        >
+                          {isSpecial ? "—" : `${slot.period}교시`}
+                        </div>
+
+                        {/* 시간 영역 */}
+                        <div
+                          className="text-xs flex-shrink-0 w-28 font-mono"
+                          style={{ color: isCurrent ? P.deep : isPast ? P.inkFade : P.mid }}
+                        >
+                          {to12Hour(slot.start)} – {to12Hour(slot.end)}
+                        </div>
+
+                        {/* 내용 및 상태 표시 */}
+                        <div className="flex-1 flex items-center gap-3 pl-2">
+                          <span
+                            className="text-sm md:text-base font-semibold"
+                            style={{ color: isCurrent ? P.ink : isSpecial ? isPast ? P.inkFade : P.inkMid : entry ? isPast ? P.inkFade : P.inkMid : `${P.mid}60` }}
+                          >
+                            {isSpecial ? slot.name : entry ? entry.className : "—"}
+                          </span>
+
+                          {isCurrent && (
+                            <span className="text-[11px] px-2.5 py-0.5 rounded-lg font-bold ml-auto" style={{ background: `${P.deep}25`, color: P.deep }}>진행중</span>
+                          )}
+                          {isPast && !isCurrent && (entry || isSpecial) && (
+                            <span className="text-xs font-medium ml-auto" style={{ color: P.inkFade }}>완료</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
